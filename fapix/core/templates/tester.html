@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fapix API & WebSocket Tester</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-main: #070b14;
+            --bg-card: #0d1424;
+            --bg-input: #070b14;
+            --bg-soft: #111a2d;
+
+            --border: rgba(148, 163, 184, 0.13);
+
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --muted-2: #64748b;
+
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 35%),
+                radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.10), transparent 30%),
+                var(--bg-main);
+            color: var(--text);
+            padding: 35px 20px;
+        }
+
+        .page {
+            width: 100%;
+            max-width: 1280px;
+            margin: auto;
+        }
+
+        /* HEADER */
+        .brand-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 24px;
+        }
+
+        .brand-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 28px;
+            font-weight: 750;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-mark {
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 11px;
+            background: linear-gradient(135deg, #2563eb, #60a5fa);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+            font-size: 20px;
+        }
+
+        .brand p {
+            margin: 6px 0 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        /* USER SESSION BADGE */
+        .user-badge {
+            background: var(--bg-soft);
+            border: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .user-meta {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .role-pill {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        /* MAIN NAVIGATION TABS */
+        .main-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 22px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--muted);
+            padding: 10px 18px;
+            border-radius: 9px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            color: var(--text);
+            background: var(--bg-soft);
+        }
+
+        .nav-btn.active {
+            background: var(--primary-dark);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.22);
+        }
+
+        /* LAYOUT & CARDS */
+        .container {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 22px;
+        }
+
+        .card {
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(9, 14, 26, 0.96));
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.28);
+            min-width: 0;
+        }
+
+        .card-header {
+            margin-bottom: 20px;
+        }
+
+        h1, h2 {
+            margin: 0;
+            letter-spacing: -0.4px;
+        }
+
+        h1 { font-size: 23px; }
+        h2 { font-size: 21px; }
+
+        .description {
+            margin: 7px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* SUB TABS (FOR AUTH) */
+        .sub-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+            padding: 5px;
+            margin-bottom: 24px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 11px;
+        }
+
+        .sub-tab {
+            width: 100%;
+            padding: 8px 12px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: 0.2s ease;
+        }
+
+        .sub-tab.active {
+            background: var(--bg-soft);
+            color: white;
+            border: 1px solid var(--border);
+        }
+
+        /* FORMS & INPUTS */
+        .form-group {
+            margin-bottom: 17px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 7px;
+            color: #cbd5e1;
+            font-size: 13px;
+            font-weight: 550;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 13px;
+            border-radius: 9px;
+            border: 1px solid #26344d;
+            background: var(--bg-input);
+            color: var(--text);
+            outline: none;
+            font-size: 14px;
+            transition: 0.2s ease;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 90px;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 12px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.10);
+        }
+
+        .primary-button, .secondary-button, .danger-button {
+            padding: 12px 15px;
+            border: 0;
+            border-radius: 9px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 650;
+            transition: 0.2s ease;
+        }
+
+        .primary-button {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+        }
+
+        .primary-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.25);
+        }
+
+        .secondary-button {
+            background: var(--bg-soft);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .secondary-button:hover {
+            background: #1e293b;
+        }
+
+        .danger-button {
+            background: #dc2626;
+            color: white;
+        }
+
+        .danger-button:hover {
+            background: #b91c1c;
+        }
+
+        /* ENDPOINT & URL ROW */
+        .endpoint-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .method-select {
+            width: 110px;
+            flex-shrink: 0;
+            font-weight: 700;
+            color: #60a5fa;
+            background: rgba(37, 99, 235, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.22);
+        }
+
+        /* CODE BOX & RESPONSE */
+        .section-label {
+            margin-bottom: 8px;
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+
+        .code-box {
+            padding: 13px;
+            min-height: 75px;
+            border-radius: 10px;
+            background: #050812;
+            border: 1px solid #1d293d;
+            overflow: auto;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #a7f3d0;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 12px;
+            line-height: 1.65;
+        }
+
+        .response {
+            margin-top: 20px;
+            border-radius: 10px;
+            background: #050812;
+            border: 1px solid #1d293d;
+            overflow: hidden;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 13px;
+            border-bottom: 1px solid #1d293d;
+            background: rgba(15, 23, 42, 0.7);
+        }
+
+        .response-title {
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        #response-output, #ws-messages {
+            min-height: 220px;
+            max-height: 420px;
+            padding: 15px;
+            overflow: auto;
+        }
+
+        /* WEBSOCKET SPECIFIC */
+        .ws-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            background: var(--muted-2);
+            margin-right: 6px;
+        }
+
+        .ws-status-dot.connected { background: var(--success); }
+        .ws-status-dot.connecting { background: var(--warning); }
+        .ws-status-dot.disconnected { background: var(--danger); }
+
+        .ws-msg-item {
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .ws-msg-sent {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid var(--primary);
+            color: #93c5fd;
+        }
+
+        .ws-msg-recv {
+            background: rgba(52, 211, 153, 0.1);
+            border-left: 3px solid var(--success);
+            color: #a7f3d0;
+        }
+
+        .ws-msg-sys {
+            background: rgba(148, 163, 184, 0.1);
+            border-left: 3px solid var(--muted);
+            color: var(--muted);
+        }
+
+        /* TOKEN BANNER */
+        .token-banner {
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            border-radius: 9px;
+            padding: 10px 14px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .token-banner span {
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        /* UTILS */
+        .status-success { color: var(--success) !important; }
+        .status-error { color: var(--danger) !important; }
+        .hidden { display: none !important; }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #475569;
+            font-size: 12px;
+        }
+
+        @media (max-width: 850px) {
+            .container { grid-template-columns: 1fr; }
+            .brand-container { flex-direction: column; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- HEADER -->
+    <div class="brand-container">
+        <div class="brand">
+            <div class="brand-name">
+                <div class="brand-mark">⚡</div>
+                Fapix
+            </div>
+            <p>Batteries Included Async Toolkit for FastAPI</p>
+        </div>
+
+        <!-- USER BADGE -->
+        <div id="user-badge" class="user-badge hidden">
+            <div class="user-info">
+                <div>
+                    <strong id="badge-username">User</strong> 
+                    <span id="badge-role" class="role-pill">User</span>
+                </div>
+                <div class="user-meta">ID: <span id="badge-id">N/A</span></div>
+            </div>
+            <button class="secondary-button" style="padding: 4px 8px; font-size: 11px;" onclick="clearToken()">Logout</button>
+        </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <div class="main-nav">
+        <button class="nav-btn active" id="nav-auth" onclick="switchSection('auth')">🔐 Authentication</button>
+        <button class="nav-btn" id="nav-manual" onclick="switchSection('manual')">🚀 HTTP Tester (Postman)</button>
+        <button class="nav-btn" id="nav-ws" onclick="switchSection('ws')">🔌 WebSockets</button>
+    </div>
+
+    <div class="container">
+
+        <!-- =========================================
+             SECTION 1: AUTHENTICATION
+        ========================================= -->
+        <div id="section-auth" class="card">
+            <div class="card-header">
+                <h1>Authentication</h1>
+                <p class="description">Test authentication endpoints directly to issue JWT tokens.</p>
+            </div>
+
+            <div class="sub-tabs">
+                <button type="button" class="sub-tab active" id="login-tab" onclick="showAuthTab('login')">Login</button>
+                <button type="button" class="sub-tab" id="signup-tab" onclick="showAuthTab('signup')">Signup</button>
+            </div>
+
+            <!-- LOGIN -->
+            <form id="login-form" onsubmit="event.preventDefault(); sendLogin();">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="primary-button">Login</button>
+            </form>
+
+            <!-- SIGNUP -->
+            <form id="signup-form" class="hidden" onsubmit="event.preventDefault(); sendSignup();">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="signup-username" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="signup-email" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signup-password" placeholder="Create a password" required>
+                </div>
+                <button type="submit" class="primary-button">Create Account</button>
+            </form>
+
+            <!-- SAVE TOKEN BANNER -->
+            <div id="save-token-banner" class="token-banner hidden">
+                <span>JWT Token detected in response!</span>
+                <button class="secondary-button" style="padding: 6px 12px; font-size: 12px;" onclick="applyAuthToken()">Save Token for Sessions</button>
+            </div>
+        </div>
+
+        <!-- =========================================
+             SECTION 2: MANUAL HTTP TESTER (POSTMAN)
+        ========================================= -->
+        <div id="section-manual" class="card hidden">
+            <div class="card-header">
+                <h2> Manual Request Tester</h2>
+                <p class="description">Send custom requests with dynamic headers, Bearer authentication, and payloads.</p>
+            </div>
+
+            <div class="form-group">
+                <label>Method & Endpoint</label>
+                <div class="endpoint-row">
+                    <select id="manual-method" class="method-select">
+                        <option value="GET">GET</option>
+                        <option value="POST" selected>POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                    <input type="text" id="manual-url" value="/api/v1/protected" spellcheck="false">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Bearer Token (Authorization Header)</label>
+                <input type="text" id="manual-token" placeholder="Bearer Token (auto-filled on login)" spellcheck="false">
+            </div>
+
+            <div class="form-group">
+                <label>Request Body (JSON)</label>
+                <textarea id="manual-body" placeholder="{\n  &quot;key&quot;: &quot;value&quot;\n}"></textarea>
+            </div>
+
+            <button type="button" class="primary-button" onclick="sendManualRequest()">Send Request</button>
+        </div>
+
+        <!-- =========================================
+             SECTION 3: WEBSOCKETS
+        ========================================= -->
+        <div id="section-ws" class="card hidden">
+            <div class="card-header">
+                <h2>🔌 WebSocket Tester</h2>
+                <p class="description">Connect to WebSocket channels and stream full-duplex JSON or text messages.</p>
+            </div>
+
+            <div class="form-group">
+                <label>WebSocket URL</label>
+                <div class="endpoint-row">
+                    <input type="text" id="ws-url" value="ws://localhost:8000/ws" spellcheck="false">
+                    <button id="ws-connect-btn" class="secondary-button" style="width: 120px;" onclick="toggleWS()">Connect</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Bearer Token Query / Header Parameter</label>
+                <input type="text" id="ws-token" placeholder="Optional token appended to URL (?token=...)" spellcheck="false">
+            </div>
+
+            <div class="form-group">
+                <label>Message Payload</label>
+                <textarea id="ws-input-body" placeholder="Hello Server or JSON string"></textarea>
+            </div>
+
+            <button type="button" class="primary-button" id="ws-send-btn" onclick="sendWSMessage()" disabled>Send Frame</button>
+        </div>
+
+        <!-- =========================================
+             SHARED RESPONSE / OUTPUT DISPLAY
+        ========================================= -->
+        <div class="card">
+            <div class="card-header">
+                <h2 id="output-title">Response Viewer</h2>
+                <p class="description" id="output-desc">Live request previews and server outputs appear here.</p>
+            </div>
+
+            <!-- REQUEST PREVIEW (HTTP ONLY) -->
+            <div id="request-preview-container" class="request-preview">
+                <div class="section-label">Request Body Preview</div>
+                <div class="code-box">
+                    <pre id="request-preview">{}</pre>
+                </div>
+            </div>
+
+            <!-- HTTP RESPONSE DISPLAY -->
+            <div id="http-response-container" class="response">
+                <div class="response-header">
+                    <span class="response-title">HTTP Response</span>
+                    <span id="status">Ready</span>
+                </div>
+                <pre id="response-output">Ready. Select a mode to begin testing.</pre>
+            </div>
+
+            <!-- WEBSOCKET CONSOLE DISPLAY -->
+            <div id="ws-response-container" class="response hidden">
+                <div class="response-header">
+                    <span class="response-title">
+                        <span id="ws-dot" class="ws-status-dot disconnected"></span>
+                        WebSocket Console
+                    </span>
+                    <button class="secondary-button" style="padding: 2px 8px; font-size: 10px;" onclick="clearWSLogs()">Clear Logs</button>
+                </div>
+                <div id="ws-messages">
+                    <div class="ws-msg-item ws-msg-sys">WebSocket disconnected. Enter endpoint and hit Connect.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        Powered by <strong>Fapix</strong> · Batteries Included Async Toolkit for FastAPI
+    </div>
+
+</div>
+
+<script>
+    // GLOBAL STATE
+    let currentSection = 'auth'; // 'auth', 'manual', 'ws'
+    let currentAuthMode = 'login'; // 'login', 'signup'
+    let activeToken = '';
+    let wsInstance = null;
+    let tempExtractedToken = '';
+
+    /* =========================================
+       SECTION SWITCHING
+    ========================================= */
+    function switchSection(section) {
+        currentSection = section;
+
+        // Toggle Navigation styling
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`nav-${section}`).classList.add('active');
+
+        // Toggle Cards visibility
+        document.getElementById('section-auth').classList.add('hidden');
+        document.getElementById('section-manual').classList.add('hidden');
+        document.getElementById('section-ws').classList.add('hidden');
+        document.getElementById(`section-${section}`).classList.remove('active');
+        document.getElementById(`section-${section}`).classList.remove('hidden');
+
+        // Toggle Output Panel Displays
+        const reqContainer = document.getElementById('request-preview-container');
+        const httpContainer = document.getElementById('http-response-container');
+        const wsContainer = document.getElementById('ws-response-container');
+
+        if (section === 'ws') {
+            reqContainer.classList.add('hidden');
+            httpContainer.classList.add('hidden');
+            wsContainer.classList.remove('hidden');
+            document.getElementById('output-title').textContent = "WebSocket Stream";
+            document.getElementById('output-desc').textContent = "Real-time frames exchanged with the active server.";
+        } else {
+            reqContainer.classList.remove('hidden');
+            httpContainer.classList.remove('hidden');
+            wsContainer.classList.add('hidden');
+            document.getElementById('output-title').textContent = "Response Viewer";
+            document.getElementById('output-desc').textContent = "Live request previews and server responses.";
+            
+            if (section === 'auth') {
+                updateAuthRequestPreview();
+            } else {
+                updateManualRequestPreview();
+            }
+        }
+    }
+
+    /* =========================================
+       JWT & USER IDENTITY DECODING
+    ========================================= */
+    function parseJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('0' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setAuthToken(token) {
+        activeToken = token;
+        document.getElementById('manual-token').value = token;
+        document.getElementById('ws-token').value = token;
+
+        // Decode Payload
+        const payload = parseJwt(token);
+        if (payload) {
+            document.getElementById('badge-username').textContent = payload.username || payload.sub || 'User';
+            document.getElementById('badge-id').textContent = payload.id || payload.user_id || 'N/A';
+            document.getElementById('badge-role').textContent = payload.role || 'User';
+            document.getElementById('user-badge').classList.remove('hidden');
+        } else {
+            document.getElementById('badge-username').textContent = 'Authenticated';
+            document.getElementById('badge-id').textContent = 'Token Active';
+            document.getElementById('badge-role').textContent = 'Key';
+            document.getElementById('user-badge').classList.remove('hidden');
+        }
+    }
+
+    function clearToken() {
+        activeToken = '';
+        tempExtractedToken = '';
+        document.getElementById('manual-token').value = '';
+        document.getElementById('ws-token').value = '';
+        document.getElementById('user-badge').classList.add('hidden');
+        document.getElementById('save-token-banner').classList.add('hidden');
+    }
+
+    function applyAuthToken() {
+        if (tempExtractedToken) {
+            setAuthToken(tempExtractedToken);
+            document.getElementById('save-token-banner').classList.add('hidden');
+        }
+    }
+
+    /* =========================================
+       SECTION 1: AUTHENTICATION LOGIC
+    ========================================= */
+    function showAuthTab(mode) {
+        currentAuthMode = mode;
+        if (mode === 'login') {
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('signup-form').classList.add('hidden');
+            document.getElementById('login-tab').classList.add('active');
+            document.getElementById('signup-tab').classList.remove('active');
+        } else {
+            document.getElementById('signup-form').classList.remove('hidden');
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-tab').classList.add('active');
+            document.getElementById('login-tab').classList.remove('active');
+        }
+        updateAuthRequestPreview();
+    }
+
+    function getAuthRequestBody() {
+        if (currentAuthMode === 'login') {
+            return {
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            };
+        }
+        return {
+            username: document.getElementById('signup-username').value,
+            email: document.getElementById('signup-email').value,
+            password: document.getElementById('signup-password').value
+        };
+    }
+
+    function updateAuthRequestPreview() {
+        if (currentSection !== 'auth') return;
+        document.getElementById('request-preview').textContent = JSON.stringify(getAuthRequestBody(), null, 2);
+    }
+
+    // Input listeners
+    document.querySelectorAll('#login-form input, #signup-form input').forEach(input => {
+        input.addEventListener('input', updateAuthRequestPreview);
+    });
+
+    async function sendLogin() {
+        await executeHttpRequest('/user/login', 'POST', getAuthRequestBody());
+    }
+
+    async function sendSignup() {
+        await executeHttpRequest('/user/signup', 'POST', getAuthRequestBody());
+    }
+
+    /* =========================================
+       SECTION 2: MANUAL REQUEST LOGIC
+    ========================================= */
+    function updateManualRequestPreview() {
+        if (currentSection !== 'manual') return;
+        const bodyStr = document.getElementById('manual-body').value.trim();
+        try {
+            const parsed = bodyStr ? JSON.parse(bodyStr) : {};
+            document.getElementById('request-preview').textContent = JSON.stringify(parsed, null, 2);
+        } catch(e) {
+            document.getElementById('request-preview').textContent = bodyStr || "{}";
+        }
+    }
+
+    document.getElementById('manual-body').addEventListener('input', updateManualRequestPreview);
+
+    async function sendManualRequest() {
+        const url = document.getElementById('manual-url').value.trim();
+        const method = document.getElementById('manual-method').value;
+        const token = document.getElementById('manual-token').value.trim();
+        const bodyStr = document.getElementById('manual-body').value.trim();
+
+        let body = null;
+        if (method !== 'GET' && bodyStr) {
+            try {
+                body = JSON.parse(bodyStr);
+            } catch (e) {
+                showHttpResponse("Error: Invalid JSON body.", 400);
+                return;
+            }
+        }
+
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        }
+
+        await executeHttpRequest(url, method, body, headers);
+    }
+
+    /* =========================================
+       CORE HTTP REQUEST EXECUTOR
+    ========================================= */
+    async function executeHttpRequest(url, method, body = null, customHeaders = {}) {
+        if (!url) {
+            showHttpResponse("API endpoint cannot be empty.", 400);
+            return;
+        }
+
+        document.getElementById('status').textContent = "Sending...";
+
+        const headers = {
+            'Accept': 'application/json',
+            ...customHeaders
+        };
+
+        const opts = { method, headers };
+
+        if (body && method !== 'GET') {
+            headers['Content-Type'] = 'application/json';
+            opts.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(url, opts);
+            const contentType = response.headers.get('content-type') || '';
+            let data;
+
+            if (contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                data = await response.text();
+            }
+
+            // Inspect for tokens automatically
+            checkForTokenInResponse(data);
+
+            showHttpResponse(data, response.status);
+        } catch (error) {
+            showHttpResponse({ error: error.toString() });
+            document.getElementById('status').textContent = "Request Failed";
+            document.getElementById('status').classList.add('status-error');
+        }
+    }
+
+    function checkForTokenInResponse(data) {
+        if (typeof data === 'object' && data !== null) {
+            const possibleToken = data.access_token || data.token || data.jwt;
+            if (possibleToken && typeof possibleToken === 'string') {
+                tempExtractedToken = possibleToken;
+                document.getElementById('save-token-banner').classList.remove('hidden');
+            }
+        }
+    }
+
+    function showHttpResponse(data, statusCode = null) {
+        const output = document.getElementById('response-output');
+        const status = document.getElementById('status');
+
+        output.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+
+        if (statusCode !== null) {
+            status.textContent = `HTTP ${statusCode}`;
+            status.classList.remove('status-success', 'status-error');
+
+            if (statusCode >= 200 && statusCode < 300) {
+                status.classList.add('status-success');
+            } else {
+                status.classList.add('status-error');
+            }
+        }
+    }
+
+    /* =========================================
+       SECTION 3: WEBSOCKET LOGIC
+    ========================================= */
+    function toggleWS() {
+        if (wsInstance && (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)) {
+            wsInstance.close();
+        } else {
+            connectWS();
+        }
+    }
+
+    function connectWS() {
+        let url = document.getElementById('ws-url').value.trim();
+        const token = document.getElementById('ws-token').value.trim();
+
+        if (!url) {
+            logWSFrame("WebSocket URL is empty.", "sys");
+            return;
+        }
+
+        if (token) {
+            const separator = url.includes('?') ? '&' : '?';
+            url += `${separator}token=${encodeURIComponent(token)}`;
+        }
+
+        try {
+            updateWSStatus('connecting');
+            logWSFrame(`Connecting to ${url}...`, "sys");
+            wsInstance = new WebSocket(url);
+
+            wsInstance.onopen = () => {
+                updateWSStatus('connected');
+                logWSFrame("WebSocket connection established.", "sys");
+                document.getElementById('ws-connect-btn').textContent = "Disconnect";
+                document.getElementById('ws-connect-btn').className = "danger-button";
+                document.getElementById('ws-send-btn').disabled = false;
+            };
+
+            wsInstance.onmessage = (evt) => {
+                logWSFrame(evt.data, "recv");
+            };
+
+            wsInstance.onerror = (err) => {
+                logWSFrame("WebSocket error encountered.", "sys");
+            };
+
+            wsInstance.onclose = () => {
+                updateWSStatus('disconnected');
+                logWSFrame("WebSocket connection closed.", "sys");
+                document.getElementById('ws-connect-btn').textContent = "Connect";
+                document.getElementById('ws-connect-btn').className = "secondary-button";
+                document.getElementById('ws-send-btn').disabled = true;
+                wsInstance = null;
+            };
+
+        } catch (e) {
+            updateWSStatus('disconnected');
+            logWSFrame(`Connection failed: ${e.message}`, "sys");
+        }
+    }
+
+    function sendWSMessage() {
+        if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) return;
+
+        const input = document.getElementById('ws-input-body').value.trim();
+        if (!input) return;
+
+        wsInstance.send(input);
+        logWSFrame(input, "sent");
+        document.getElementById('ws-input-body').value = '';
+    }
+
+    function logWSFrame(data, type) {
+        const container = document.getElementById('ws-messages');
+        const item = document.createElement('div');
+        item.className = `ws-msg-item ws-msg-${type}`;
+
+        const timestamp = new Date().toLocaleTimeString();
+        let formattedData = data;
+
+        try {
+            const parsed = JSON.parse(data);
+            formattedData = JSON.stringify(parsed, null, 2);
+        } catch (e) {}
+
+        const prefix = type === 'sent' ? '⬆ SENT' : type === 'recv' ? '⬇ RECV' : 'ℹ SYS';
+        item.textContent = `[${timestamp}] ${prefix}:\n${formattedData}`;
+
+        container.appendChild(item);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function clearWSLogs() {
+        document.getElementById('ws-messages').innerHTML = '';
+    }
+
+    function updateWSStatus(state) {
+        const dot = document.getElementById('ws-dot');
+        dot.className = `ws-status-dot ${state}`;
+    }
+
+    // INITIALIZATION
+    switchSection('auth');
+</script>
+
+</body>
+</html>

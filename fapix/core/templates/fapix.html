@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Fapix - Batteries Included Async Toolkit for FastAPI"
+    >
+
+    <title>Fapix — Async Toolkit for FastAPI</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #080d18;
+            --bg-soft: #0d1424;
+            --card: rgba(15, 23, 42, 0.78);
+            --border: rgba(148, 163, 184, 0.12);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --muted-light: #cbd5e1;
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --success: #34d399;
+            --code: #020617;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+
+            font-family:
+                Inter,
+                ui-sans-serif,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            color: var(--text);
+
+            background:
+                radial-gradient(
+                    circle at 15% 10%,
+                    rgba(59, 130, 246, 0.13),
+                    transparent 32%
+                ),
+
+                radial-gradient(
+                    circle at 85% 25%,
+                    rgba(16, 185, 129, 0.08),
+                    transparent 30%
+                ),
+
+                var(--bg);
+        }
+
+
+        /* =========================
+           NAVBAR
+        ========================= */
+
+        .navbar {
+            width: 100%;
+
+            border-bottom:
+                1px solid var(--border);
+
+            background:
+                rgba(8, 13, 24, 0.78);
+
+            backdrop-filter:
+                blur(16px);
+
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-inner {
+            max-width: 1180px;
+            margin: auto;
+
+            padding:
+                18px 28px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+        }
+
+        .brand {
+            display: flex;
+
+            align-items: center;
+
+            gap: 11px;
+
+            text-decoration: none;
+
+            color: var(--text);
+
+            font-size: 20px;
+
+            font-weight: 750;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 10px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #3b82f6,
+                    #2563eb
+                );
+
+            box-shadow:
+                0 8px 30px
+                rgba(37, 99, 235, 0.28);
+
+            font-weight: 800;
+        }
+
+        .nav-links {
+            display: flex;
+
+            align-items: center;
+
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+
+            text-decoration: none;
+
+            font-size: 14px;
+
+            transition:
+                color 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: white;
+        }
+
+
+        /* =========================
+           HERO
+        ========================= */
+
+        .hero {
+            max-width: 1180px;
+
+            margin: auto;
+
+            padding:
+                100px 28px
+                80px;
+
+            display: grid;
+
+            grid-template-columns:
+                1.15fr
+                0.85fr;
+
+            gap: 70px;
+
+            align-items: center;
+        }
+
+        .badge {
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            padding:
+                7px 12px;
+
+            border:
+                1px solid
+                rgba(59, 130, 246, 0.25);
+
+            border-radius: 999px;
+
+            background:
+                rgba(59, 130, 246, 0.08);
+
+            color:
+                #93c5fd;
+
+            font-size: 13px;
+
+            font-weight: 600;
+
+            margin-bottom: 22px;
+        }
+
+        .badge-dot {
+            width: 7px;
+            height: 7px;
+
+            border-radius: 50%;
+
+            background:
+                var(--success);
+
+            box-shadow:
+                0 0 12px
+                rgba(52, 211, 153, 0.7);
+        }
+
+        .hero h1 {
+            margin: 0;
+
+            font-size:
+                clamp(
+                    48px,
+                    7vw,
+                    82px
+                );
+
+            line-height: 0.98;
+
+            letter-spacing:
+                -4px;
+        }
+
+        .hero h1 span {
+            color:
+                #60a5fa;
+        }
+
+        .hero h2 {
+            margin:
+                25px 0 0;
+
+            max-width: 650px;
+
+            font-size:
+                clamp(
+                    21px,
+                    3vw,
+                    30px
+                );
+
+            line-height: 1.3;
+
+            font-weight: 550;
+
+            color:
+                var(--muted-light);
+        }
+
+        .hero-description {
+            max-width: 650px;
+
+            margin:
+                20px 0 0;
+
+            color:
+                var(--muted);
+
+            font-size: 17px;
+
+            line-height: 1.8;
+        }
+
+        .hero-actions {
+            display: flex;
+
+            flex-wrap: wrap;
+
+            gap: 12px;
+
+            margin-top: 32px;
+        }
+
+        .button {
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding:
+                12px 18px;
+
+            border-radius: 9px;
+
+            text-decoration: none;
+
+            font-size: 14px;
+
+            font-weight: 650;
+
+            transition:
+                transform 0.2s ease,
+                background 0.2s ease;
+        }
+
+        .button:hover {
+            transform:
+                translateY(-2px);
+        }
+
+        .button-primary {
+            background:
+                var(--primary);
+
+            color: white;
+
+            box-shadow:
+                0 10px 30px
+                rgba(37, 99, 235, 0.22);
+        }
+
+        .button-primary:hover {
+            background:
+                var(--primary-dark);
+        }
+
+        .button-secondary {
+            border:
+                1px solid var(--border);
+
+            background:
+                rgba(15, 23, 42, 0.6);
+
+            color:
+                var(--muted-light);
+        }
+
+
+        /* =========================
+           TERMINAL
+        ========================= */
+
+        .terminal {
+            border:
+                1px solid var(--border);
+
+            border-radius: 15px;
+
+            overflow: hidden;
+
+            background:
+                var(--code);
+
+            box-shadow:
+                0 30px 80px
+                rgba(0, 0, 0, 0.35);
+        }
+
+        .terminal-bar {
+            height: 44px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            padding:
+                0 15px;
+
+            border-bottom:
+                1px solid var(--border);
+
+            background:
+                #0b1220;
+        }
+
+        .terminal-dot {
+            width: 9px;
+            height: 9px;
+
+            border-radius: 50%;
+
+            background:
+                #475569;
+        }
+
+        .terminal-title {
+            margin-left: 8px;
+
+            color:
+                #64748b;
+
+            font-size: 12px;
+        }
+
+        .terminal-body {
+            padding:
+                25px;
+
+            font-family:
+                "SFMono-Regular",
+                Consolas,
+                "Liberation Mono",
+                monospace;
+
+            font-size: 13px;
+
+            line-height: 1.9;
+
+            color:
+                #cbd5e1;
+        }
+
+        .terminal-line {
+            display: block;
+        }
+
+        .prompt {
+            color:
+                #60a5fa;
+        }
+
+        .command {
+            color:
+                #f8fafc;
+        }
+
+        .comment {
+            color:
+                #64748b;
+        }
+
+        .success {
+            color:
+                #6ee7b7;
+        }
+
+
+        /* =========================
+           SECTION
+        ========================= */
+
+        .section {
+            max-width: 1180px;
+
+            margin: auto;
+
+            padding:
+                70px 28px;
+        }
+
+        .section-heading {
+            max-width: 680px;
+
+            margin-bottom: 35px;
+        }
+
+        .section-heading .eyebrow {
+            color:
+                #60a5fa;
+
+            text-transform:
+                uppercase;
+
+            letter-spacing:
+                1.8px;
+
+            font-size: 11px;
+
+            font-weight: 750;
+        }
+
+        .section-heading h2 {
+            margin:
+                10px 0;
+
+            font-size:
+                clamp(
+                    30px,
+                    4vw,
+                    43px
+                );
+
+            letter-spacing:
+                -1.5px;
+        }
+
+        .section-heading p {
+            color:
+                var(--muted);
+
+            line-height:
+                1.7;
+        }
+
+
+        /* =========================
+           FEATURES
+        ========================= */
+
+        .features {
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 16px;
+        }
+
+        .feature {
+            padding:
+                25px;
+
+            min-height: 190px;
+
+            border:
+                1px solid var(--border);
+
+            border-radius: 15px;
+
+            background:
+                var(--card);
+
+            transition:
+                transform 0.2s ease,
+                border-color 0.2s ease;
+        }
+
+        .feature:hover {
+            transform:
+                translateY(-4px);
+
+            border-color:
+                rgba(59, 130, 246, 0.3);
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 10px;
+
+            background:
+                rgba(59, 130, 246, 0.1);
+
+            color:
+                #60a5fa;
+
+            font-size: 19px;
+
+            margin-bottom: 18px;
+        }
+
+        .feature h3 {
+            margin:
+                0 0 9px;
+
+            font-size: 17px;
+        }
+
+        .feature p {
+            margin: 0;
+
+            color:
+                var(--muted);
+
+            font-size: 14px;
+
+            line-height: 1.7;
+        }
+
+
+        /* =========================
+           HIGHLIGHT
+        ========================= */
+
+        .highlight {
+            display: grid;
+
+            grid-template-columns:
+                1fr 1fr;
+
+            gap: 18px;
+        }
+
+        .highlight-card {
+            padding:
+                30px;
+
+            border:
+                1px solid var(--border);
+
+            border-radius: 16px;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(15, 23, 42, 0.95),
+                    rgba(9, 14, 26, 0.8)
+                );
+        }
+
+        .highlight-card h3 {
+            margin-top: 0;
+
+            font-size: 21px;
+        }
+
+        .highlight-card p {
+            color:
+                var(--muted);
+
+            line-height: 1.8;
+        }
+
+        .code-block {
+            margin-top: 20px;
+
+            padding:
+                18px;
+
+            border-radius: 10px;
+
+            background:
+                #020617;
+
+            border:
+                1px solid var(--border);
+
+            overflow-x: auto;
+
+            font-family:
+                monospace;
+
+            font-size: 13px;
+
+            line-height: 1.8;
+        }
+
+
+        /* =========================
+           CUSTOM DETAILS
+        ========================= */
+
+        .custom {
+            padding:
+                35px;
+
+            border:
+                1px dashed
+                rgba(148, 163, 184, 0.2);
+
+            border-radius: 16px;
+
+            background:
+                rgba(15, 23, 42, 0.35);
+        }
+
+        .custom h2 {
+            margin-top: 0;
+        }
+
+        .custom p {
+            color:
+                var(--muted);
+
+            line-height:
+                1.8;
+        }
+
+        .custom-note {
+            margin-top: 22px;
+
+            padding:
+                16px;
+
+            border-radius: 9px;
+
+            background:
+                rgba(59, 130, 246, 0.06);
+
+            color:
+                #93c5fd;
+
+            font-size: 13px;
+        }
+
+
+        /* =========================
+           FOOTER
+        ========================= */
+
+        footer {
+            margin-top: 50px;
+
+            border-top:
+                1px solid var(--border);
+        }
+
+        .footer-inner {
+            max-width: 1180px;
+
+            margin: auto;
+
+            padding:
+                28px;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            gap: 20px;
+
+            color:
+                #64748b;
+
+            font-size: 13px;
+        }
+
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 900px) {
+
+            .hero {
+                grid-template-columns: 1fr;
+
+                gap: 45px;
+
+                padding-top: 70px;
+            }
+
+            .features {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .highlight {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+
+        @media (max-width: 600px) {
+
+            .nav-inner {
+                padding:
+                    14px 18px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding:
+                    60px 20px;
+            }
+
+            .hero h1 {
+                letter-spacing:
+                    -2px;
+            }
+
+            .section {
+                padding:
+                    55px 20px;
+            }
+
+            .features {
+                grid-template-columns:
+                    1fr;
+            }
+
+            .feature {
+                min-height:
+                    auto;
+            }
+
+            .terminal-body {
+                padding:
+                    18px;
+
+                font-size:
+                    12px;
+            }
+
+            .custom {
+                padding:
+                    24px;
+            }
+
+            .footer-inner {
+                flex-direction:
+                    column;
+
+                align-items:
+                    flex-start;
+
+                padding:
+                    24px 20px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<!-- =========================
+     NAVIGATION
+========================= -->
+
+<nav class="navbar">
+
+    <div class="nav-inner">
+
+        <a
+            href="/"
+            class="brand"
+        >
+
+            <span class="brand-mark">
+                F
+            </span>
+
+            <span>
+                Fapix
+            </span>
+
+        </a>
+
+
+        <div class="nav-links">
+
+            <a href="#features">
+                Features
+            </a>
+
+            <a href="#architecture">
+                Architecture
+            </a>
+
+            <a href="#about">
+                About
+            </a>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+
+<!-- =========================
+     HERO
+========================= -->
+
+<main>
+
+<section class="hero">
+
+    <div>
+
+        <div class="badge">
+
+            <span class="badge-dot"></span>
+
+            Async-first Python toolkit
+
+        </div>
+
+
+        <h1>
+            <span>Fapix</span>
+        </h1>
+
+
+        <h2>
+            Batteries Included Async Toolkit for FastAPI.
+        </h2>
+
+
+        <p class="hero-description">
+
+            Build production-ready asynchronous APIs
+            with less boilerplate and a familiar,
+            modular development experience.
+
+        </p>
+
+
+        <div class="hero-actions">
+
+            <a
+                href="#features"
+                class="button button-primary"
+            >
+                Explore Fapix
+            </a>
+
+
+            <a
+                href="#about"
+                class="button button-secondary"
+            >
+                Learn More
+            </a>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- TERMINAL -->
+
+    <div class="terminal">
+
+        <div class="terminal-bar">
+
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+
+            <span class="terminal-title">
+                terminal
+            </span>
+
+        </div>
+
+
+        <div class="terminal-body">
+
+            <span class="terminal-line">
+
+                <span class="prompt">
+                    $
+                </span>
+
+                <span class="command">
+                    fapix startproject myproject
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+
+                <span class="success">
+                    ✓ Project created successfully
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+
+                <span class="prompt">
+                    $
+                </span>
+
+                <span class="command">
+                    fapix startapp products
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+
+                <span class="success">
+                    ✓ App created successfully
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+
+                <span class="prompt">
+                    $
+                </span>
+
+                <span class="command">
+                    fapix runserver
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+
+                <span class="success">
+                    ✓ Server running on :8000
+                </span>
+
+            </span>
+
+
+            <span class="terminal-line">
+                <br>
+            </span>
+
+
+            <span class="terminal-line comment">
+                # Batteries included.
+            </span>
+
+            <span class="terminal-line comment">
+                # Async by design.
+            </span>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+
+<!-- =========================
+     FEATURES
+========================= -->
+
+<section
+    class="section"
+    id="features"
+>
+
+    <div class="section-heading">
+
+        <div class="eyebrow">
+            Why Fapix
+        </div>
+
+        <h2>
+            Less boilerplate.
+            More building.
+        </h2>
+
+        <p>
+            Fapix brings commonly needed backend
+            functionality together while keeping
+            FastAPI's asynchronous foundation.
+        </p>
+
+    </div>
+
+
+    <div class="features">
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                ⚡
+            </div>
+
+            <h3>
+                Async First
+            </h3>
+
+            <p>
+                Designed around FastAPI and modern
+                asynchronous Python applications.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🧩
+            </div>
+
+            <h3>
+                Modular Apps
+            </h3>
+
+            <p>
+                Organize your project into reusable
+                Django-inspired application modules.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🗄️
+            </div>
+
+            <h3>
+                Database Ready
+            </h3>
+
+            <p>
+                Integrated database configuration,
+                ORM support and migration workflow.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🔐
+            </div>
+
+            <h3>
+                Authentication
+            </h3>
+
+            <p>
+                Build authentication and authorization
+                without rebuilding the same foundation.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🛠️
+            </div>
+
+            <h3>
+                Developer CLI
+            </h3>
+
+            <p>
+                Generate projects, apps, migrations,
+                users and development environments
+                from the command line.
+            </p>
+
+        </div>
+
+
+        <div class="feature">
+
+            <div class="feature-icon">
+                🚀
+            </div>
+
+            <h3>
+                FastAPI Powered
+            </h3>
+
+            <p>
+                Keep the performance and flexibility
+                of FastAPI underneath the toolkit.
+            </p>
+
+        </div>
+
+
+    </div>
+
+</section>
+
+
+
+<!-- =========================
+     ARCHITECTURE
+========================= -->
+
+<section
+    class="section"
+    id="architecture"
+>
+
+    <div class="section-heading">
+
+        <div class="eyebrow">
+            Developer Experience
+        </div>
+
+        <h2>
+            Familiar structure,
+            async foundation.
+        </h2>
+
+        <p>
+            Fapix provides conventions for structuring
+            FastAPI applications without taking away
+            the flexibility of the underlying framework.
+        </p>
+
+    </div>
+
+
+    <div class="highlight">
+
+
+        <div class="highlight-card">
+
+            <h3>
+                Django-inspired organization
+            </h3>
+
+            <p>
+                Keep models, schemas, views, URLs and
+                configuration organized inside individual
+                applications.
+            </p>
+
+
+            <div class="code-block">
+
+                project/
+                <br>
+                ├── main.py
+                <br>
+                ├── db_config.py
+                <br>
+                ├── apps/
+                <br>
+                │&nbsp;&nbsp; ├── auth/
+                <br>
+                │&nbsp;&nbsp; │&nbsp;&nbsp; ├── models.py
+                <br>
+                │&nbsp;&nbsp; │&nbsp;&nbsp; ├── schemas.py
+                <br>
+                │&nbsp;&nbsp; │&nbsp;&nbsp; ├── views.py
+                <br>
+                │&nbsp;&nbsp; │&nbsp;&nbsp; └── urls.py
+                <br>
+                │&nbsp;&nbsp; └── products/
+
+            </div>
+
+        </div>
+
+
+
+        <div class="highlight-card">
+
+            <h3>
+                Batteries included
+            </h3>
+
+            <p>
+                Start with sensible project conventions
+                and expand only when your application
+                actually needs more.
+            </p>
+
+
+            <div class="code-block">
+
+                <span class="comment">
+                    # Create a project
+                </span>
+
+                <br>
+
+                fapix startproject store
+
+                <br><br>
+
+                <span class="comment">
+                    # Create an application
+                </span>
+
+                <br>
+
+                fapix startapp products
+
+                <br><br>
+
+                <span class="comment">
+                    # Start development
+                </span>
+
+                <br>
+
+                fapix runserver
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+</section>
+
+
+
+<!-- =========================
+     CUSTOM AREA
+========================= -->
+
+<section
+    class="section"
+    id="about"
+>
+
+    <div class="custom">
+
+        <h2>
+            Your Fapix Project
+        </h2>
+
+
+        <p>
+            <!--
+                CUSTOMIZE THIS SECTION.
+
+                Replace this text with your own
+                project description, documentation
+                links, author information, project
+                goals, or anything else you want.
+            -->
+
+            <!-- WRITE YOUR PROJECT DETAILS HERE -->
+
+            Add your project description here.
+            Explain what your application does,
+            who it is for, or what you are building
+            with Fapix.
+
+        </p>
+
+
+        <div class="custom-note">
+
+            <!-- WRITE YOUR OWN NOTE HERE -->
+
+            ✦ Built with Fapix · FastAPI · Async Python
+
+        </div>
+
+    </div>
+
+</section>
+
+</main>
+
+
+
+<!-- =========================
+     FOOTER
+========================= -->
+
+<footer>
+
+    <div class="footer-inner">
+
+        <div>
+            © 2026 Fapix
+        </div>
+
+
+        <div>
+            Batteries Included · Async by Design
+        </div>
+
+    </div>
+
+</footer>
+
+
+</body>
+
+</html>
