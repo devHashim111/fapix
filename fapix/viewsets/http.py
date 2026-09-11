@@ -1,6 +1,7 @@
 import inspect
 from typing import Any, Dict, List, Optional, Type, Callable, Union
 from fastapi import Body, HTTPException, Query, Request, Depends, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
@@ -166,7 +167,7 @@ class ModelViewSet(
                     page: int = Query(1, ge=1, description="Page number"),
                     page_size: Optional[int] = Query(None, ge=1, description="Number of items per page"),
                     auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                ):
+                ) -> Any:
                     return await self.list(
                         request=request, 
                         search=search, 
@@ -182,7 +183,7 @@ class ModelViewSet(
                     ordering: Optional[str] = Query(None, description="Ordering parameter e.g. -created_at"),
                     page: int = Query(1, ge=1, description="Page number"),
                     page_size: Optional[int] = Query(None, ge=1, description="Number of items per page"),
-                ):
+                ) -> Any:
                     return await self.list(
                         request=request, 
                         search=search, 
@@ -201,13 +202,13 @@ class ModelViewSet(
                         request: Request, 
                         data: Union[schema_cls, List[schema_cls]] = Body(...),  # type: ignore
                         auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> Union[schema_cls, List[schema_cls]]:  # type: ignore
+                    ) -> Any:
                         return await self._execute_create(request, data, auth=auth)
                 else:
                     async def create_endpoint(
                         request: Request, 
                         data: Union[schema_cls, List[schema_cls]] = Body(...),  # type: ignore
-                    ) -> Union[schema_cls, List[schema_cls]]:  # type: ignore
+                    ) -> Any:
                         return await self._execute_create(request, data)
 
                 create_endpoint.__name__ = f"{self.__class__.__name__}_create"
@@ -222,7 +223,7 @@ class ModelViewSet(
                         pk: Optional[str] = None,
                         id: Optional[str] = None,
                         auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> schema_cls:  # type: ignore
+                    ) -> Any:
                         return await self.retrieve(request, slug=slug, pk=pk, id=id, auth=auth)
                 else:
                     async def retrieve_endpoint(
@@ -230,7 +231,7 @@ class ModelViewSet(
                         slug: Optional[str] = None,
                         pk: Optional[str] = None,
                         id: Optional[str] = None,
-                    ) -> schema_cls:  # type: ignore
+                    ) -> Any:
                         return await self.retrieve(request, slug=slug, pk=pk, id=id)
 
                 retrieve_endpoint.__name__ = f"{self.__class__.__name__}_retrieve"
@@ -246,7 +247,7 @@ class ModelViewSet(
                         pk: Optional[str] = None,
                         id: Optional[str] = None,
                         auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> schema_cls:  # type: ignore
+                    ) -> Any:
                         return await self._execute_update(request, data, slug=slug, pk=pk, id=id, auth=auth)
                 else:
                     async def update_endpoint(
@@ -255,7 +256,7 @@ class ModelViewSet(
                         slug: Optional[str] = None,
                         pk: Optional[str] = None,
                         id: Optional[str] = None,
-                    ) -> schema_cls:  # type: ignore
+                    ) -> Any:
                         return await self._execute_update(request, data, slug=slug, pk=pk, id=id)
 
                 update_endpoint.__name__ = f"{self.__class__.__name__}_update"
@@ -269,7 +270,7 @@ class ModelViewSet(
                     pk: Optional[str] = None,
                     id: Optional[str] = None,
                     auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                ):
+                ) -> Any:
                     return await self.destroy(request, slug=slug, pk=pk, id=id, auth=auth)
             else:
                 async def destroy_endpoint(
@@ -277,7 +278,7 @@ class ModelViewSet(
                     slug: Optional[str] = None,
                     pk: Optional[str] = None,
                     id: Optional[str] = None,
-                ):
+                ) -> Any:
                     return await self.destroy(request, slug=slug, pk=pk, id=id)
 
             destroy_endpoint.__name__ = f"{self.__class__.__name__}_destroy"
@@ -310,7 +311,11 @@ class ModelViewSet(
                 ]
 
             if schema:
-                return [schema.model_validate(inst, from_attributes=True) for inst in instances]
+                result = [
+                    inst if isinstance(inst, BaseModel) else schema.model_validate(inst, from_attributes=True)
+                    for inst in instances
+                ]
+                return [i.model_dump(mode="json") if isinstance(i, BaseModel) else i for i in result]
             return instances
 
         # 2. Handle Single Item Creation
@@ -322,7 +327,10 @@ class ModelViewSet(
         instance = await self.create_action(validated_data, request=request)
 
         if schema:
-            return schema.model_validate(instance, from_attributes=True)
+            if isinstance(instance, BaseModel):
+                return JSONResponse(content=instance.model_dump(mode="json"))
+            validated = schema.model_validate(instance, from_attributes=True)
+            return JSONResponse(content=validated.model_dump(mode="json"))
         return instance
 
     async def create(
@@ -374,19 +382,25 @@ class ModelViewSet(
         )
 
         schema = self.get_schema("list")
-        if not schema:
-            return response_data
 
+        def _validate_item(item: Any):
+            if schema and not isinstance(item, BaseModel):
+                item = schema.model_validate(item, from_attributes=True)
+            if isinstance(item, BaseModel):
+                return item.model_dump(mode="json")
+            return item
+
+        # Validate inner items against schema, then wrap in JSONResponse to skip route validation
         if isinstance(response_data, dict) and "results" in response_data:
             response_data["results"] = [
-                schema.model_validate(item, from_attributes=True)
+                _validate_item(item)
                 for item in response_data["results"]
             ]
-            return response_data
+            return JSONResponse(content=response_data)
         elif isinstance(response_data, list):
-            return [schema.model_validate(item, from_attributes=True) for item in response_data]
+            return JSONResponse(content=[_validate_item(item) for item in response_data])
 
-        return response_data
+        return JSONResponse(content=response_data)
 
     async def retrieve(
         self, 
@@ -405,7 +419,10 @@ class ModelViewSet(
 
         schema = self.get_schema("retrieve")
         if schema:
-            return schema.model_validate(instance, from_attributes=True)
+            if isinstance(instance, BaseModel):
+                return JSONResponse(content=instance.model_dump(mode="json"))
+            dumped = schema.model_validate(instance, from_attributes=True).model_dump(mode="json")
+            return JSONResponse(content=dumped)
         return instance
 
     async def _execute_update(
@@ -431,7 +448,10 @@ class ModelViewSet(
 
         schema = self.get_schema("update")
         if schema:
-            return schema.model_validate(instance, from_attributes=True)
+            if isinstance(instance, BaseModel):
+                return JSONResponse(content=instance.model_dump(mode="json"))
+            dumped = schema.model_validate(instance, from_attributes=True).model_dump(mode="json")
+            return JSONResponse(content=dumped)
         return instance
 
     async def update(

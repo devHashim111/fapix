@@ -1,10 +1,9 @@
 import inspect
-from typing import Any, Dict, List, Optional, Type, Callable, Union
-
+from typing import Any, Dict, List, Optional, Type, Callable, Union, Generic, TypeVar
 from fastapi import Body, HTTPException, Query, Request, Depends, status
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-
+from .viewsets.http import ModelViewSet as ModelViewSet
 from .viewsets.base import BaseViewSet
 from .viewsets.tortoise.mixins import (
     ListModelMixin,
@@ -13,7 +12,21 @@ from .viewsets.tortoise.mixins import (
     UpdateModelMixin,
     DestroyModelMixin,
 )
-from apps.auth.permissions import security
+
+# Optional security scheme prevents dual-header duplicates in OpenAPI Swagger UI
+security_optional = HTTPBearer(auto_error=False)
+
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+    next: Optional[str] = None
+    previous: Optional[str] = None
+    results: List[T]
 
 
 def _lookup_fields(view: Any) -> List[str]:
@@ -55,7 +68,7 @@ def _auth_parameter() -> inspect.Parameter:
         "auth",
         inspect.Parameter.KEYWORD_ONLY,
         annotation=Optional[HTTPAuthorizationCredentials],
-        default=Depends(security),
+        default=Depends(security_optional),
     )
 
 
@@ -295,7 +308,7 @@ class CreateAPIView(GenericAPIView, CreateModelMixin):
             data_annotation,
         )
 
-    async def post(
+    async def _execute_create(
         self,
         request: Request,
         data: Any,
@@ -304,26 +317,52 @@ class CreateAPIView(GenericAPIView, CreateModelMixin):
         await self.dispatch_permission_check(request, "create", auth=auth)
         schema = self.get_schema("create")
 
+        if isinstance(data, list):
+            validated_payloads = [
+                item.model_dump() if isinstance(item, BaseModel) else item
+                for item in data
+            ]
+
+            if hasattr(self, "bulk_create_action"):
+                instances = await self.bulk_create_action(validated_payloads, request=request)
+            else:
+                instances = [
+                    await self.create_action(payload, request=request)
+                    for payload in validated_payloads
+                ]
+
+            if schema:
+                return [schema.model_validate(inst, from_attributes=True) for inst in instances]
+            return instances
+
         if isinstance(data, BaseModel):
             validated_data = data.model_dump()
         else:
             validated_data = schema(**data).model_dump() if schema else data
 
-        instance = await self.create_action(
-            validated_data,
-            request=request,
-        )
+        instance = await self.create_action(validated_data, request=request)
 
-        return (
-            schema.model_validate(instance, from_attributes=True)
-            if schema
-            else instance
-        )
+        if schema:
+            return schema.model_validate(instance, from_attributes=True)
+        return instance
+
+    async def post(
+        self,
+        request: Request,
+        data: Any,
+        auth: Optional[HTTPAuthorizationCredentials] = None,
+    ):
+        return await self._execute_create(request, data, auth=auth)
 
 
 class ListAPIView(GenericAPIView, ListModelMixin):
     def get_endpoint_handler(self, action: str = "list") -> Optional[Callable]:
+        schema_cls = self.get_schema("list")
         needs_sec = self.requires_auth("list")
+
+        return_annotation = (
+            PaginatedResponse[schema_cls] if schema_cls else Dict[str, Any]
+        )
 
         parameters = [
             _request_parameter(),
@@ -331,39 +370,25 @@ class ListAPIView(GenericAPIView, ListModelMixin):
                 "search",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=Optional[str],
-                default=Query(
-                    None,
-                    description="Search query parameter",
-                ),
+                default=Query(None, description="Search query parameter"),
             ),
             inspect.Parameter(
                 "ordering",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=Optional[str],
-                default=Query(
-                    None,
-                    description="Ordering parameter e.g. -created_at",
-                ),
+                default=Query(None, description="Ordering parameter e.g. -created_at"),
             ),
             inspect.Parameter(
                 "page",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=int,
-                default=Query(
-                    1,
-                    ge=1,
-                    description="Page number",
-                ),
+                default=Query(1, ge=1, description="Page number"),
             ),
             inspect.Parameter(
                 "page_size",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=Optional[int],
-                default=Query(
-                    None,
-                    ge=1,
-                    description="Number of items per page",
-                ),
+                default=Query(None, ge=1, description="Number of items per page"),
             ),
         ]
 
@@ -388,6 +413,7 @@ class ListAPIView(GenericAPIView, ListModelMixin):
         return _set_signature(
             list_endpoint,
             parameters,
+            return_annotation,
         )
 
     async def get(
@@ -401,7 +427,25 @@ class ListAPIView(GenericAPIView, ListModelMixin):
     ):
         await self.dispatch_permission_check(request, "list", auth=auth)
 
+        params = dict(request.query_params)
+        search = search or params.pop("search", None)
+        ordering = ordering or params.pop("ordering", None)
+        page = page or params.pop("page", 1)
+
         effective_page_size = page_size or getattr(self, "page_size", 10)
+
+        try:
+            page = int(page)
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            effective_page_size = int(effective_page_size)
+        except (ValueError, TypeError):
+            effective_page_size = getattr(self, "page_size", 10)
+
+        for param_key in ("search", "ordering", "page", "page_size"):
+            params.pop(param_key, None)
 
         response_data = await self.list_action(
             request=request,
@@ -409,6 +453,7 @@ class ListAPIView(GenericAPIView, ListModelMixin):
             page_size=effective_page_size,
             search=search,
             ordering=ordering,
+            **params,
         )
 
         schema = self.get_schema("list")
@@ -418,22 +463,13 @@ class ListAPIView(GenericAPIView, ListModelMixin):
 
         if isinstance(response_data, dict) and "results" in response_data:
             response_data["results"] = [
-                schema.model_validate(
-                    item,
-                    from_attributes=True,
-                )
+                schema.model_validate(item, from_attributes=True)
                 for item in response_data["results"]
             ]
             return response_data
 
         if isinstance(response_data, list):
-            return [
-                schema.model_validate(
-                    item,
-                    from_attributes=True,
-                )
-                for item in response_data
-            ]
+            return [schema.model_validate(item, from_attributes=True) for item in response_data]
 
         return response_data
 
@@ -615,7 +651,7 @@ class UpdateAPIView(GenericAPIView, UpdateModelMixin):
             schema_cls or Any,
         )
 
-    async def put(
+    async def _execute_update(
         self,
         request: Request,
         data: Any,
@@ -665,6 +701,26 @@ class UpdateAPIView(GenericAPIView, UpdateModelMixin):
             )
             if schema
             else instance
+        )
+
+    async def put(
+        self,
+        request: Request,
+        data: Any,
+        slug: Optional[str] = None,
+        pk: Optional[str] = None,
+        id: Optional[str] = None,
+        auth: Optional[HTTPAuthorizationCredentials] = None,
+        **kwargs: Any,
+    ):
+        return await self._execute_update(
+            request,
+            data,
+            slug=slug,
+            pk=pk,
+            id=id,
+            auth=auth,
+            **kwargs,
         )
 
     async def patch(
@@ -728,340 +784,113 @@ class GenericViewSet(GenericAPIView):
 
 class ReadOnlyModelViewSet(
     GenericViewSet,
-    ListModelMixin,
-    RetrieveModelMixin,
+    ListAPIView,
+    RetrieveAPIView,
 ):
-    pass
-
-class ModelViewSet(
-    GenericViewSet,
-    ListModelMixin,
-    CreateModelMixin,
-    RetrieveModelMixin,
-    UpdateModelMixin,
-    DestroyModelMixin,
-):
-    """DRF-style ModelViewSet over HTTP with Multi-Lookup & Querying support."""
-
-    def requires_auth(self, action: str) -> bool:
-        """Determines whether an action requires authentication based on view permissions."""
-        perms = self.get_permissions(action)
-        return bool(perms)
-
-    def get_endpoint_handler(self, action: str) -> Callable:
-        """
-        Generates endpoint handlers with typed Pydantic signatures for request body, 
-        query parameters, dynamic OpenAPI security schemes, and return types.
-        """
-        original_handler = getattr(self, action, None)
-        if not original_handler:
-            return None
-
-        schema_cls = self.get_schema(action)
-        needs_sec = self.requires_auth(action)
-        auth_dep = Depends(security) if needs_sec else None
-
+    def get_endpoint_handler(self, action: str) -> Optional[Callable]:
         if action == "list":
-            if needs_sec:
-                async def list_endpoint(
-                    request: Request,
-                    search: Optional[str] = Query(None, description="Search query parameter"),
-                    ordering: Optional[str] = Query(None, description="Ordering parameter e.g. -created_at"),
-                    page: int = Query(1, ge=1, description="Page number"),
-                    page_size: Optional[int] = Query(None, ge=1, description="Number of items per page"),
-                    auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                ):
-                    return await self.list(
-                        request=request, 
-                        search=search, 
-                        ordering=ordering, 
-                        page=page, 
-                        page_size=page_size, 
-                        auth=auth
-                    )
-            else:
-                async def list_endpoint(
-                    request: Request,
-                    search: Optional[str] = Query(None, description="Search query parameter"),
-                    ordering: Optional[str] = Query(None, description="Ordering parameter e.g. -created_at"),
-                    page: int = Query(1, ge=1, description="Page number"),
-                    page_size: Optional[int] = Query(None, ge=1, description="Number of items per page"),
-                ):
-                    return await self.list(
-                        request=request, 
-                        search=search, 
-                        ordering=ordering, 
-                        page=page, 
-                        page_size=page_size
-                    )
-
-            list_endpoint.__name__ = f"{self.__class__.__name__}_list"
-            return list_endpoint
-
-        if action == "create":
-            if schema_cls:
-                if needs_sec:
-                    async def create_endpoint(
-                        request: Request, 
-                        data: Union[schema_cls, List[schema_cls]] = Body(...),  # type: ignore
-                        auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> Union[schema_cls, List[schema_cls]]:  # type: ignore
-                        return await self._execute_create(request, data, auth=auth)
-                else:
-                    async def create_endpoint(
-                        request: Request, 
-                        data: Union[schema_cls, List[schema_cls]] = Body(...),  # type: ignore
-                    ) -> Union[schema_cls, List[schema_cls]]:  # type: ignore
-                        return await self._execute_create(request, data)
-
-                create_endpoint.__name__ = f"{self.__class__.__name__}_create"
-                return create_endpoint
-
+            return ListAPIView.get_endpoint_handler(self, "list")
         if action == "retrieve":
-            if schema_cls:
-                if needs_sec:
-                    async def retrieve_endpoint(
-                        request: Request,
-                        slug: Optional[str] = None,
-                        pk: Optional[str] = None,
-                        id: Optional[str] = None,
-                        auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> schema_cls:  # type: ignore
-                        return await self.retrieve(request, slug=slug, pk=pk, id=id, auth=auth)
-                else:
-                    async def retrieve_endpoint(
-                        request: Request,
-                        slug: Optional[str] = None,
-                        pk: Optional[str] = None,
-                        id: Optional[str] = None,
-                    ) -> schema_cls:  # type: ignore
-                        return await self.retrieve(request, slug=slug, pk=pk, id=id)
+            return RetrieveAPIView.get_endpoint_handler(self, "retrieve")
+        return super().get_endpoint_handler(action)
 
-                retrieve_endpoint.__name__ = f"{self.__class__.__name__}_retrieve"
-                return retrieve_endpoint
 
-        if action == "update":
-            if schema_cls:
-                if needs_sec:
-                    async def update_endpoint(
-                        request: Request,
-                        data: schema_cls = Body(...),  # type: ignore
-                        slug: Optional[str] = None,
-                        pk: Optional[str] = None,
-                        id: Optional[str] = None,
-                        auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                    ) -> schema_cls:  # type: ignore
-                        return await self._execute_update(request, data, slug=slug, pk=pk, id=id, auth=auth)
-                else:
-                    async def update_endpoint(
-                        request: Request,
-                        data: schema_cls = Body(...),  # type: ignore
-                        slug: Optional[str] = None,
-                        pk: Optional[str] = None,
-                        id: Optional[str] = None,
-                    ) -> schema_cls:  # type: ignore
-                        return await self._execute_update(request, data, slug=slug, pk=pk, id=id)
+class ModelViewSet(ModelViewSet):
+    pass
+    """DRF-style ModelViewSet inherits handlers directly from mixin API views."""
 
-                update_endpoint.__name__ = f"{self.__class__.__name__}_update"
-                return update_endpoint
+    # def get_endpoint_handler(self, action: str) -> Optional[Callable]:
+    #     if action == "list":
+    #         return ListAPIView.get_endpoint_handler(self, "list")
+    #     if action == "create":
+    #         return CreateAPIView.get_endpoint_handler(self, "create")
+    #     if action == "retrieve":
+    #         return RetrieveAPIView.get_endpoint_handler(self, "retrieve")
+    #     if action == "update":
+    #         return UpdateAPIView.get_endpoint_handler(self, "update")
+    #     if action == "destroy":
+    #         return DestroyAPIView.get_endpoint_handler(self, "destroy")
 
-        if action == "destroy":
-            if needs_sec:
-                async def destroy_endpoint(
-                    request: Request,
-                    slug: Optional[str] = None,
-                    pk: Optional[str] = None,
-                    id: Optional[str] = None,
-                    auth: Optional[HTTPAuthorizationCredentials] = auth_dep,
-                ):
-                    return await self.destroy(request, slug=slug, pk=pk, id=id, auth=auth)
-            else:
-                async def destroy_endpoint(
-                    request: Request,
-                    slug: Optional[str] = None,
-                    pk: Optional[str] = None,
-                    id: Optional[str] = None,
-                ):
-                    return await self.destroy(request, slug=slug, pk=pk, id=id)
+    #     return super().get_endpoint_handler(action)
 
-            destroy_endpoint.__name__ = f"{self.__class__.__name__}_destroy"
-            return destroy_endpoint
+    # async def create(
+    #     self,
+    #     request: Request,
+    #     data: Any = Body(...),
+    #     auth: Optional[HTTPAuthorizationCredentials] = None,
+    # ):
+    #     return await self._execute_create(request, data, auth=auth)
 
-        return original_handler
+    # async def list(
+    #     self,
+    #     request: Request,
+    #     search: Optional[str] = None,
+    #     ordering: Optional[str] = None,
+    #     page: int = 1,
+    #     page_size: Optional[int] = None,
+    #     auth: Optional[HTTPAuthorizationCredentials] = None,
+    # ):
+    #     return await self.get(
+    #         request,
+    #         page=page,
+    #         page_size=page_size,
+    #         search=search,
+    #         ordering=ordering,
+    #         auth=auth,
+    #     )
 
-    async def _execute_create(
-        self, 
-        request: Request, 
-        data: Any, 
-        auth: Optional[HTTPAuthorizationCredentials] = None
-    ):
-        await self.dispatch_permission_check(request, "create", auth=auth)
-        schema = self.get_schema("create")
+    # async def retrieve(
+    #     self,
+    #     request: Request,
+    #     slug: Optional[str] = None,
+    #     pk: Optional[str] = None,
+    #     id: Optional[str] = None,
+    #     auth: Optional[HTTPAuthorizationCredentials] = None,
+    #     **kwargs: Any,
+    # ):
+    #     return await self.get(
+    #         request,
+    #         slug=slug,
+    #         pk=pk,
+    #         id=id,
+    #         auth=auth,
+    #         **kwargs,
+    #     )
 
-        # 1. Handle Bulk Creation (List payload)
-        if isinstance(data, list):
-            validated_payloads = [
-                item.model_dump() if isinstance(item, BaseModel) else item 
-                for item in data
-            ]
+    # async def update(
+    #     self,
+    #     request: Request,
+    #     data: Any = Body(...),
+    #     slug: Optional[str] = None,
+    #     pk: Optional[str] = None,
+    #     id: Optional[str] = None,
+    #     auth: Optional[HTTPAuthorizationCredentials] = None,
+    #     **kwargs: Any,
+    # ):
+    #     return await self._execute_update(
+    #         request,
+    #         data,
+    #         slug=slug,
+    #         pk=pk,
+    #         id=id,
+    #         auth=auth,
+    #         **kwargs,
+    #     )
 
-            if hasattr(self, "bulk_create_action"):
-                instances = await self.bulk_create_action(validated_payloads, request=request)
-            else:
-                instances = [
-                    await self.create_action(payload, request=request) 
-                    for payload in validated_payloads
-                ]
-
-            if schema:
-                return [schema.model_validate(inst, from_attributes=True) for inst in instances]
-            return instances
-
-        # 2. Handle Single Item Creation
-        if isinstance(data, BaseModel):
-            validated_data = data.model_dump()
-        else:
-            validated_data = schema(**data).model_dump() if schema else data
-
-        instance = await self.create_action(validated_data, request=request)
-
-        if schema:
-            return schema.model_validate(instance, from_attributes=True)
-        return instance
-
-    async def create(
-        self, 
-        request: Request, 
-        data: Union[Dict[str, Any], List[Dict[str, Any]]] = Body(...),
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        return await self._execute_create(request, data, auth=auth)
-
-    async def list(
-        self, 
-        request: Request,
-        search: Optional[str] = None,
-        ordering: Optional[str] = None,
-        page: int = 1,
-        page_size: Optional[int] = None,
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        await self.dispatch_permission_check(request, "list", auth=auth)
-        
-        params = dict(request.query_params)
-        search = search or params.pop("search", None)
-        ordering = ordering or params.pop("ordering", None)
-        page = page or params.pop("page", 1)
-        
-        effective_page_size = page_size or getattr(self, "page_size", 10)
-
-        try:
-            page = int(page)
-        except (ValueError, TypeError):
-            page = 1
-
-        try:
-            page_size = int(effective_page_size)
-        except (ValueError, TypeError):
-            page_size = getattr(self, "page_size", 10)
-
-        for param_key in ("search", "ordering", "page", "page_size"):
-            params.pop(param_key, None)
-
-        response_data = await self.list_action(
-            request=request,
-            search=search,
-            ordering=ordering,
-            page=page,
-            page_size=page_size,
-            **params
-        )
-
-        schema = self.get_schema("list")
-        if not schema:
-            return response_data
-
-        if isinstance(response_data, dict) and "results" in response_data:
-            response_data["results"] = [
-                schema.model_validate(item, from_attributes=True)
-                for item in response_data["results"]
-            ]
-            return response_data
-        elif isinstance(response_data, list):
-            return [schema.model_validate(item, from_attributes=True) for item in response_data]
-
-        return response_data
-
-    async def retrieve(
-        self, 
-        request: Request, 
-        slug: Optional[str] = None, 
-        pk: Optional[str] = None, 
-        id: Optional[str] = None,
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        await self.dispatch_permission_check(request, "retrieve", auth=auth)
-        lookup_data = self.get_lookup_dict(slug=slug, pk=pk, id=id)
-
-        instance = await self.retrieve_action(lookup_data, request=request)
-        if not instance:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-
-        schema = self.get_schema("retrieve")
-        if schema:
-            return schema.model_validate(instance, from_attributes=True)
-        return instance
-
-    async def _execute_update(
-        self,
-        request: Request,
-        data: Any,
-        slug: Optional[str] = None,
-        pk: Optional[str] = None,
-        id: Optional[str] = None,
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        await self.dispatch_permission_check(request, "update", auth=auth)
-        lookup_data = self.get_lookup_dict(slug=slug, pk=pk, id=id)
-
-        if isinstance(data, BaseModel):
-            update_data = data.model_dump()
-        else:
-            update_data = data
-
-        instance = await self.update_action(lookup_data, update_data, request=request)
-        if not instance:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-
-        schema = self.get_schema("update")
-        if schema:
-            return schema.model_validate(instance, from_attributes=True)
-        return instance
-
-    async def update(
-        self, 
-        request: Request, 
-        data: Dict[str, Any] = Body(...), 
-        slug: Optional[str] = None, 
-        pk: Optional[str] = None, 
-        id: Optional[str] = None,
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        return await self._execute_update(request, data, slug=slug, pk=pk, id=id, auth=auth)
-
-    async def destroy(
-        self, 
-        request: Request, 
-        slug: Optional[str] = None, 
-        pk: Optional[str] = None, 
-        id: Optional[str] = None,
-        auth: Optional[HTTPAuthorizationCredentials] = None,
-    ):
-        await self.dispatch_permission_check(request, "destroy", auth=auth)
-        lookup_data = self.get_lookup_dict(slug=slug, pk=pk, id=id)
-
-        success = await self.destroy_action(lookup_data, request=request)
-        if not success:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-
-        return {"detail": "Deleted successfully"}
+    # async def destroy(
+    #     self,
+    #     request: Request,
+    #     slug: Optional[str] = None,
+    #     pk: Optional[str] = None,
+    #     id: Optional[str] = None,
+    #     auth: Optional[HTTPAuthorizationCredentials] = None,
+    #     **kwargs: Any,
+    # ):
+    #     return await self.delete(
+    #         request,
+    #         slug=slug,
+    #         pk=pk,
+    #         id=id,
+    #         auth=auth,
+    #         **kwargs,
+    #     )
