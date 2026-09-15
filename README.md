@@ -167,7 +167,7 @@ class Product(Model):
 
 ```python
 from fapix.views import ModelViewSet
-from fapix.permissions import IsSuperUser, IsSuperUserOrRole
+from apps.auth.permissions import IsSuperUser, IsSuperUserOrRole
 from .models import Product
 from .schemas import (
     ProductSchema,
@@ -205,6 +205,30 @@ class ProductViewSet(ModelViewSet):
     filterset_fields = ["is_active", "stock"]
     ordering_fields = ["price", "id", "stock"]
     default_ordering = ["-price"]
+
+```
+
+
+#### **Defined Function Views with decorators (`apps/product/views.py`)**
+
+```python
+from fastapi import FastAPI, Depends
+from fapix.decorators import permission_classes, api_view
+
+@api_view
+@permission_class([IsAuthenticated])
+async def home():
+    #Your function goes here
+
+### Another Approach 
+from fastapi import FastAPI, Depends
+from apps.auth.permissions import IsAuthenticated, IsSuperUser , IsSuperUserOrRole
+
+
+async def home(
+    current_user = Depends(IsAuthenticated())
+):
+    #Your function goes here
 
 ```
 
