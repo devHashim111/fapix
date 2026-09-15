@@ -17,10 +17,13 @@ dependencies = [
     "aerich",
     "sqlalchemy>=2.0.0",
     "alembic>=1.11.0",
-    "jose",
+    "python-jose[cryptography]",
     "fastapi",
     "uvicorn",
     "typer",
+    "passlib",
+    "pydantic[email]",
+    "bcrypt==4.0.1",
 ]
 
 [project.scripts]
