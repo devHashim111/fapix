@@ -25,10 +25,6 @@ dependencies = [
     "pydantic[email]",
     "bcrypt==4.0.1",
 ]
-
-[project.scripts]
-fapix = "fapix.core.cli.main:cli"
-
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -38,3 +34,6 @@ classifiers = [
 
 [project.urls]
 "Homepage" = "https://github.com/devHashim111/fapix"
+[project.scripts]
+fapix = "fapix.core.cli.main:cli"
+
