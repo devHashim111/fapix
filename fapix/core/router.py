@@ -1,3 +1,4 @@
+
 import inspect
 from typing import List, Dict, Any, Callable, Optional
 
@@ -48,6 +49,15 @@ def register_urlpatterns(
     for route in urlpatterns:
         path: str = route["path"]
         view_target: Any = route["view"]
+
+        if route.get("websocket"):
+            router.add_api_websocket_route(
+                path=path,
+                endpoint=view_target,
+                name=route.get("name"),
+            )
+            continue
+
         name: Optional[str] = route.get("name")
         response_model: Any = route.get("response_model")
 
@@ -67,15 +77,6 @@ def register_urlpatterns(
             view_target
             if inspect.isclass(view_target)
             else getattr(view_target, "view_class", None)
-            # BaseViewSet.as_view() returns a closure with `.cls` set to
-            # the originating class (not `view_class` or `__self__`, which
-            # are Starlette/bound-method conventions this project doesn't
-            # use). Without this branch, cls_target was always None for
-            # every `SomeView.as_view({...})` registration, which sent it
-            # straight to the plain-callable fallback below: no security
-            # dependency (no lock icon) and the raw `view(request, **kwargs)`
-            # signature exposed to Swagger instead of anything built by
-            # get_endpoint_handler() (raw args/kwargs instead of typed params).
             or getattr(view_target, "cls", None)
             or getattr(view_target, "__self__", None)
         )
@@ -302,3 +303,4 @@ def register_urlpatterns(
         )
 
     return router
+

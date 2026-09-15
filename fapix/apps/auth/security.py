@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError  # <-- Import jose errors directly
 from fastapi import HTTPException, status
 
 # Centralized configuration (Min 32 bytes for HS256)
@@ -33,12 +33,12 @@ def decode_token(token: str) -> Dict[str, Any]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:  # <-- Updated from jwt.ExpiredSignatureError
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired.",
         )
-    except jwt.PyJWTError:
+    except JWTError:  # <-- Updated from jwt.PyJWTError
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials.",
