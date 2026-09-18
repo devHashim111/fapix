@@ -1,4 +1,3 @@
-
 import inspect
 from typing import List, Dict, Any, Callable, Optional
 
@@ -49,14 +48,6 @@ def register_urlpatterns(
     for route in urlpatterns:
         path: str = route["path"]
         view_target: Any = route["view"]
-
-        if route.get("websocket"):
-            router.add_api_websocket_route(
-                path=path,
-                endpoint=view_target,
-                name=route.get("name"),
-            )
-            continue
 
         name: Optional[str] = route.get("name")
         response_model: Any = route.get("response_model")
@@ -221,7 +212,7 @@ def register_urlpatterns(
 
                 needs_auth = (
                     bool(
-                        view_instance.get_permissions(
+                        view_instance.gewebt_permissions(
                             action_name
                         )
                     )
@@ -303,4 +294,3 @@ def register_urlpatterns(
         )
 
     return router
-

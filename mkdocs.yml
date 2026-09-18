@@ -1,0 +1,20 @@
+site_name: Fapix Documentation
+site_description: High-productivity DRF Inspired web framework for FastAPI
+site_url: https://devHashim111.github.io/fapix/
+theme:
+  name: material
+  palette:
+    scheme: slate # Dark mode
+    primary: indigo
+    accent: indigo
+  features:
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - CLI & Migrations: cli.md
+  - HTTP ViewSets: http-viewsets.md
+  - WebSocket ViewSets: websocket-viewsets.md
+  - Authentication: authentication.md
