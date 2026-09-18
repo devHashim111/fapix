@@ -38,7 +38,10 @@ where = ["."]
 include = ["fapix*"]
 
 [project.urls]
-"Homepage" = "https://github.com/devHashim111/fapix"
 
+Documentation = "https://devHashim111.github.io/fapix/"
+Homepage = "https://github.com/devHashim111/fapix"
+Documentation = "https://devHashim111.github.io/fapix/"
+Homepage = "https://github.com/devHashim111/fapix"
 [project.scripts]
 fapix = "fapix.core.cli.main:cli"
