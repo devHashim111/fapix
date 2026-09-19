@@ -182,11 +182,13 @@ class WebSocketApiView(BaseViewSet):
     broadcast_dynamic_attr: Optional[str] = None
 
     manager: WebSocketManager = global_ws_manager
+    ws: Optional[WebSocket] = None
 
     @classmethod
     async def handle_connection(cls, websocket: WebSocket):
         """Entry point for handling isolated WebSocket endpoint routes."""
         self = cls()
+        self.ws = websocket  # Bind active websocket connection to instance
         token = websocket.query_params.get("token")
         client_addr = f"{getattr(websocket.client, 'host', '127.0.0.1')}:{getattr(websocket.client, 'port', 0)}"
 
@@ -302,6 +304,7 @@ class WebSocketApiView(BaseViewSet):
 
     async def dispatch_permission_check(self, websocket: WebSocket, action: str):
         """Evaluates view permissions dynamically for WebSocket actions matching HTTP layer logic."""
+        self.ws = websocket
         perms = self.get_permissions(action)
         if not perms:
             return
@@ -342,6 +345,7 @@ class WebSocketApiView(BaseViewSet):
         payload: Union[Dict[str, Any], List[Dict[str, Any]]],
         params: Optional[Dict[str, Any]] = None
     ) -> Any:
+        self.ws = websocket  # Ensure self.ws is bound prior to executing action methods
         handler = getattr(self, f"action_{action}", None) or getattr(self, action, None)
         if callable(handler):
             return await handler(payload, params=params)
@@ -349,6 +353,7 @@ class WebSocketApiView(BaseViewSet):
 
     async def authenticate_websocket(self, websocket: WebSocket, token: Optional[str]) -> bool:
         """Validates token and runs ws_connect connection permissions."""
+        self.ws = websocket
         perms = self.get_permissions("ws_connect")
 
         if not token:
@@ -442,6 +447,7 @@ class WebSocketModelViewSet(
         payload: Union[Dict[str, Any], List[Dict[str, Any]]],
         params: Optional[Dict[str, Any]] = None
     ):
+        self.ws = websocket
         schema = self.get_schema(action)
         params = params or {}
         dummy_req = DummyRequest(websocket)
@@ -592,6 +598,7 @@ class WebSocketMultiplexer:
 
         first_viewset_cls = next(iter(self.viewset_map.values()))
         auth_instance = first_viewset_cls()
+        auth_instance.ws = websocket
         is_allowed = await auth_instance.authenticate_websocket(websocket, token)
         if not is_allowed:
             reason = "Credentials not provided" if not token else "Invalid or expired token"
@@ -644,6 +651,7 @@ class WebSocketMultiplexer:
                 # Instantiate targeted viewset class dynamically per request
                 viewset_cls = self.viewset_map[target_viewset_key]
                 viewset_instance = viewset_cls()
+                viewset_instance.ws = websocket  # Bind active websocket connection
 
                 try:
                     # Action permission check
@@ -705,36 +713,21 @@ class WebSocketMultiplexer:
                         )
 
                 except ValidationError as ve:
-                    logger.warning(f"Multiplexer [\x1b[36m{target_viewset_key}\x1b[0m] Action '\x1b[31m{action}\x1b[0m' validation failed")
+                    logger.warning(f"Multiplexer [\x1b[36m{target_viewset_key}\x1b[0m] Action '\x1b[31m{action}\x1b[0m' validation failed: {ve.error_count()} errors")
                     await self.manager.send_personal_message(
-                        {
-                            "viewset": target_viewset_key,
-                            "action": action, 
-                            "status": "error", 
-                            "errors": ve.errors()
-                        },
+                        {"viewset": target_viewset_key, "action": action, "status": "error", "errors": ve.errors()},
                         websocket
                     )
                 except PermissionError as pe:
                     logger.warning(f"Multiplexer [\x1b[36m{target_viewset_key}\x1b[0m] Action '\x1b[31m{action}\x1b[0m' permission denied: {pe}")
                     await self.manager.send_personal_message(
-                        {
-                            "viewset": target_viewset_key,
-                            "action": action, 
-                            "status": "error", 
-                            "message": str(pe)
-                        },
+                        {"viewset": target_viewset_key, "action": action, "status": "error", "message": str(pe)},
                         websocket
                     )
                 except Exception as e:
                     logger.error(f"Multiplexer [\x1b[36m{target_viewset_key}\x1b[0m] Action '\x1b[31m{action}\x1b[0m' failed: {e}")
                     await self.manager.send_personal_message(
-                        {
-                            "viewset": target_viewset_key,
-                            "action": action, 
-                            "status": "error", 
-                            "message": str(e)
-                        },
+                        {"viewset": target_viewset_key, "action": action, "status": "error", "message": str(e)},
                         websocket
                     )
 
