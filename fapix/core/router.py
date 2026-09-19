@@ -212,7 +212,7 @@ def register_urlpatterns(
 
                 needs_auth = (
                     bool(
-                        view_instance.gewebt_permissions(
+                        view_instance.get_permissions(
                             action_name
                         )
                     )
