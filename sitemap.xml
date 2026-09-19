@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://devHashim111.github.io/fapix/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://devHashim111.github.io/fapix/authentication/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://devHashim111.github.io/fapix/cli/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://devHashim111.github.io/fapix/http-viewsets/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://devHashim111.github.io/fapix/websocket-viewsets/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+</urlset>
