@@ -2,6 +2,8 @@ import inspect
 from typing import Any, Dict, List, Optional, Type, Union
 from fastapi import HTTPException, status, Query, Request
 from pydantic import BaseModel, Field
+from tortoise import transactions
+from tortoise.exceptions import IntegrityError, OperationalError
 from tortoise.expressions import Q
 
 
@@ -137,13 +139,18 @@ class ListModelMixin(PermissionMixin):
 
 
 class CreateModelMixin(PermissionMixin):
-    """Network-Agnostic Create Mixin supporting single & bulk creation."""
+    """Network-Agnostic Create Mixin supporting single & bulk creation with constraint safety."""
 
     async def create_action(self, payload: dict, request: Optional[Request] = None):
         await self.check_permissions("create", request)
         try:
             instance = await self.model.create(**payload)
             return instance
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Database constraint violation (foreign key or unique field invalid): {str(e)}"
+            )
         except (ValueError, TypeError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -154,8 +161,14 @@ class CreateModelMixin(PermissionMixin):
         await self.check_permissions("bulk_create", request)
         try:
             instances = [self.model(**payload) for payload in payloads]
-            await self.model.bulk_create(instances)
+            async with transactions.in_transaction():
+                await self.model.bulk_create(instances)
             return instances
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Bulk create failed due to database constraint violation: {str(e)}"
+            )
         except (ValueError, TypeError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -169,20 +182,23 @@ class RetrieveModelMixin(PermissionMixin):
     async def retrieve_action(self, lookup_data: Dict[str, Any], request: Optional[Request] = None):
         await self.check_permissions("retrieve", request)
         try:
-            return await self.model.filter(**lookup_data).first()
-        except Exception:
-            return None
+            return await self.model.get_or_none(**lookup_data)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Retrieve failed with invalid parameters: {str(e)}"
+            )
 
 
 class UpdateModelMixin(PermissionMixin):
-    """Network-Agnostic Update Mixin with single & bulk updates."""
+    """Network-Agnostic Update Mixin with pooled bulk update transactions."""
     
     lookup_field: str = "id"
 
     async def update_action(self, lookup_data: Dict[str, Any], update_payload: Dict[str, Any], request: Optional[Request] = None):
         await self.check_permissions("update", request)
         try:
-            instance = await self.model.filter(**lookup_data).first()
+            instance = await self.model.get_or_none(**lookup_data)
             if not instance:
                 return None
             
@@ -191,22 +207,52 @@ class UpdateModelMixin(PermissionMixin):
                 
             await instance.save()
             return instance
-        except Exception:
-            return None
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Update failed due to foreign key or constraint error: {str(e)}"
+            )
 
     async def bulk_update_action(self, payloads: List[Dict[str, Any]], request: Optional[Request] = None):
         await self.check_permissions("bulk_update", request)
-        updated_instances = []
-        for payload in payloads:
-            lookup_val = payload.get(self.lookup_field)
-            if lookup_val is None:
-                continue
-            
-            update_data = {k: v for k, v in payload.items() if k != self.lookup_field}
-            updated = await self.update_action({self.lookup_field: lookup_val}, update_data, request)
-            if updated:
-                updated_instances.append(updated)
-        return updated_instances
+        if not payloads:
+            return []
+
+        lookup_keys = [p[self.lookup_field] for p in payloads if self.lookup_field in p]
+        if not lookup_keys:
+            return []
+
+        try:
+            async with transactions.in_transaction():
+                instances = await self.model.filter(**{f"{self.lookup_field}__in": lookup_keys})
+                instance_map = {getattr(inst, self.lookup_field): inst for inst in instances}
+                
+                updated_instances = []
+                update_fields = set()
+
+                for payload in payloads:
+                    lookup_val = payload.get(self.lookup_field)
+                    instance = instance_map.get(lookup_val)
+                    if not instance:
+                        continue
+
+                    for k, v in payload.items():
+                        if k != self.lookup_field:
+                            setattr(instance, k, v)
+                            update_fields.add(k)
+                    
+                    updated_instances.append(instance)
+
+                if updated_instances and update_fields:
+                    await self.model.bulk_update(updated_instances, fields=list(update_fields))
+
+                return updated_instances
+
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Bulk update failed due to database constraint violation: {str(e)}"
+            )
 
 
 class DestroyModelMixin(PermissionMixin):
@@ -217,22 +263,26 @@ class DestroyModelMixin(PermissionMixin):
     async def destroy_action(self, lookup_data: Dict[str, Any], request: Optional[Request] = None) -> bool:
         await self.check_permissions("destroy", request)
         try:
-            instance = await self.model.filter(**lookup_data).first()
+            instance = await self.model.get_or_none(**lookup_data)
             if not instance:
                 return False
             await instance.delete()
             return True
-        except Exception:
-            return False
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete record because it is referenced by other resources: {str(e)}"
+            )
 
     async def bulk_destroy_action(self, body: BulkDeleteSchema, request: Optional[Request] = None) -> Dict[str, Any]:
         await self.check_permissions("bulk_destroy", request)
         try:
             filter_kwargs = {f"{self.lookup_field}__in": body.keys}
-            deleted_count = await self.model.filter(**filter_kwargs).delete()
+            async with transactions.in_transaction():
+                deleted_count = await self.model.filter(**filter_kwargs).delete()
             return {"deleted_count": deleted_count, "keys": body.keys}
-        except Exception as e:
+        except IntegrityError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Bulk delete failed: {str(e)}"
+                detail=f"Bulk delete failed because some items are referenced elsewhere: {str(e)}"
             )
